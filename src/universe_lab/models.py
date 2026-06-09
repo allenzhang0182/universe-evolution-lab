@@ -19,25 +19,28 @@ def utc_now() -> str:
 
 @dataclass
 class Event:
-    turn: int
+    year: int
     type: str
+    title: str
     description: str
+    impact: dict[str, Any] = field(default_factory=dict)
     target_kind: str = "universe"
     target_id: str | None = None
-    impact: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Event":
+        event_type = str(data.get("type", "unknown"))
         return cls(
-            turn=int(data.get("turn", 0)),
-            type=str(data.get("type", "unknown")),
+            year=int(data.get("year", data.get("turn", 0))),
+            type=event_type,
+            title=str(data.get("title") or event_type.replace("_", " ").title()),
             description=str(data.get("description", "")),
+            impact=dict(data.get("impact", {})),
             target_kind=str(data.get("target_kind", "universe")),
             target_id=data.get("target_id"),
-            impact=dict(data.get("impact", {})),
         )
 
 
@@ -48,7 +51,10 @@ class Species:
     population: int
     adaptability: float
     intelligence: float
+    cooperation: float
     aggression: float
+    mutation_rate: float
+    status: str
     resilience: float
     environment_affinity: str
     age: int = 0
@@ -60,17 +66,24 @@ class Species:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Species":
+        status = str(data.get("status") or "alive")
+        extinct = bool(data.get("extinct", status == "extinct"))
+        if extinct:
+            status = "extinct"
         return cls(
             id=str(data["id"]),
             name=str(data["name"]),
             population=int(data.get("population", 0)),
             adaptability=float(data.get("adaptability", 0.5)),
             intelligence=float(data.get("intelligence", 0.1)),
+            cooperation=float(data.get("cooperation", 0.45)),
             aggression=float(data.get("aggression", 0.3)),
+            mutation_rate=float(data.get("mutation_rate", 0.03)),
+            status=status,
             resilience=float(data.get("resilience", 0.5)),
             environment_affinity=str(data.get("environment_affinity", "temperate")),
             age=int(data.get("age", 0)),
-            extinct=bool(data.get("extinct", False)),
+            extinct=extinct,
             civilization_id=data.get("civilization_id"),
         )
 
@@ -81,10 +94,13 @@ class Civilization:
     name: str
     species_id: str
     population: int
-    technology: float
-    culture: float
+    knowledge: float
+    organization: float
+    creativity: float
     stability: float
     expansion: float
+    ethics: float
+    status: str
     resources: float
     age: int = 0
     extinct: bool = False
@@ -94,18 +110,26 @@ class Civilization:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Civilization":
+        status = str(data.get("status") or "stable")
+        extinct = bool(data.get("extinct", status == "collapsed"))
+        if extinct:
+            status = "collapsed"
+        old_culture = float(data.get("culture", 0.5))
         return cls(
             id=str(data["id"]),
             name=str(data["name"]),
             species_id=str(data["species_id"]),
             population=int(data.get("population", 0)),
-            technology=float(data.get("technology", 0.0)),
-            culture=float(data.get("culture", 0.5)),
+            knowledge=float(data.get("knowledge", data.get("technology", 0.1))),
+            organization=float(data.get("organization", old_culture)),
+            creativity=float(data.get("creativity", old_culture)),
             stability=float(data.get("stability", 0.5)),
             expansion=float(data.get("expansion", 0.0)),
+            ethics=float(data.get("ethics", old_culture)),
+            status=status,
             resources=float(data.get("resources", 0.5)),
             age=int(data.get("age", 0)),
-            extinct=bool(data.get("extinct", False)),
+            extinct=extinct,
         )
 
 
@@ -139,6 +163,7 @@ class Universe:
     name: str
     mode: str
     turn: int
+    age: int
     seed: int
     config: SimulationConfig
     species: list[Species] = field(default_factory=list)
@@ -154,6 +179,7 @@ class Universe:
             "name": self.name,
             "mode": self.mode,
             "turn": self.turn,
+            "age": self.age,
             "seed": self.seed,
             "config": self.config.to_dict(),
             "species": [item.to_dict() for item in self.species],
@@ -179,6 +205,7 @@ class Universe:
             name=str(data.get("name", "unnamed")),
             mode=str(data.get("mode", config_data["mode"])),
             turn=int(data.get("turn", 0)),
+            age=int(data.get("age", data.get("turn", 0))),
             seed=int(data.get("seed", config_data["seed"])),
             config=SimulationConfig.from_dict(config_data),
             species=[Species.from_dict(item) for item in data.get("species", [])],

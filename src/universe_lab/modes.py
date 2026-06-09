@@ -53,9 +53,11 @@ def create_life_burst(name: str, seed: int) -> Universe:
     universe = _base_universe(name, "life_burst", seed, config, species)
     universe.events.append(
         Event(
-            turn=0,
-            type="genesis",
-            description=f"{len(species)} life seeds emerged across young worlds.",
+            year=0,
+            type="quiet_age",
+            title="Life Seeds Emerged",
+            description=f"{len(species)} young species appeared across open habitats.",
+            impact={"species": len(species)},
         )
     )
     return universe
@@ -64,8 +66,7 @@ def create_life_burst(name: str, seed: int) -> Universe:
 def create_civilization_seeds(name: str, seed: int) -> Universe:
     rng = random.Random(seed)
     config = SimulationConfig(mode="civilization_seeds", name=name, seed=seed)
-    species_count = rng.randint(3, 5)
-    species = [_random_species(rng, i, mature=True) for i in range(species_count)]
+    species = [_random_species(rng, i, mature=True) for i in range(3)]
     civilizations: list[Civilization] = []
 
     for index, item in enumerate(species):
@@ -83,9 +84,11 @@ def create_civilization_seeds(name: str, seed: int) -> Universe:
     )
     universe.events.append(
         Event(
-            turn=0,
-            type="civilization_seed",
-            description=f"{len(civilizations)} primitive civilizations entered history.",
+            year=0,
+            type="civilization_growth",
+            title="Civilization Seeds Established",
+            description="Three early civilizations began developing independently.",
+            impact={"civilizations": len(civilizations)},
         )
     )
     return universe
@@ -104,9 +107,11 @@ def create_minimal_observer(name: str, seed: int) -> Universe:
     universe = _base_universe(name, "minimal_observer", seed, config, species)
     universe.events.append(
         Event(
-            turn=0,
-            type="observation_started",
+            year=0,
+            type="quiet_age",
+            title="Observation Began",
             description="An observer protocol began with no direct interventions allowed.",
+            impact={"observer_limited": True},
         )
     )
     return universe
@@ -125,6 +130,7 @@ def _base_universe(
         name=name,
         mode=mode,
         turn=0,
+        age=0,
         seed=seed,
         config=config,
         species=species,
@@ -148,7 +154,10 @@ def _random_species(rng: random.Random, index: int, mature: bool = False) -> Spe
         population=population,
         adaptability=round(rng.uniform(0.2, 0.9), 3),
         intelligence=round(intelligence_base, 3),
+        cooperation=round(rng.uniform(0.15, 0.85), 3),
         aggression=round(rng.uniform(0.05, 0.85), 3),
+        mutation_rate=round(rng.uniform(0.01, 0.09), 3),
+        status="stable" if mature else "alive",
         resilience=round(rng.uniform(0.2, 0.9), 3),
         environment_affinity=rng.choice(_ENVIRONMENTS),
     )
@@ -165,10 +174,13 @@ def _random_civilization(
         name=civ_name,
         species_id=species.id,
         population=max(1_000, int(species.population * rng.uniform(0.35, 0.9))),
-        technology=round(rng.uniform(0.04, 0.22), 3),
-        culture=round(rng.uniform(0.25, 0.75), 3),
+        knowledge=round(rng.uniform(0.12, 0.45), 3),
+        organization=round(rng.uniform(0.2, 0.72), 3),
+        creativity=round(rng.uniform(0.2, 0.8), 3),
         stability=round(rng.uniform(0.35, 0.85), 3),
         expansion=round(rng.uniform(0.02, 0.18), 3),
+        ethics=round(rng.uniform(0.18, 0.85), 3),
+        status=rng.choice(("rising", "stable", "stable")),
         resources=round(rng.uniform(0.25, 0.85), 3),
         age=rng.randint(3, 40),
     )

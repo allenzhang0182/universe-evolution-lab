@@ -50,12 +50,13 @@ def branch_universe(
     branch.updated_at = branch.created_at
     branch.events.append(
         Event(
-            turn=branch.turn,
+            year=branch.age,
             type="branch_created",
+            title="Branch Created",
             description=f"Branch '{new_name}' copied from '{source.name}'.",
+            impact={"source_id": source.id},
             target_kind="universe",
             target_id=branch.id,
-            impact={"source_id": source.id},
         )
     )
     resolved = save_universe(branch, target_path or default_run_path(new_name))

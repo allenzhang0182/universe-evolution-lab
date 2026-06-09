@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     show = subparsers.add_parser("show", help="show a saved run summary")
     show.add_argument("--run", type=Path, required=True)
-    show.add_argument("--events", type=int, default=12)
+    show.add_argument("--events", type=int, default=10)
     show.add_argument("--json", action="store_true", help="print raw JSON summary")
 
     branch = subparsers.add_parser("branch", help="copy a saved run into a new branch")
@@ -81,7 +81,7 @@ def _step(args: argparse.Namespace) -> int:
         print()
         print("Recent events:")
         for event in universe.events[-min(5, len(universe.events)) :]:
-            print(f"- turn {event.turn}: {event.type} - {event.description}")
+            print(f"- year {event.year}: {event.type} - {event.title}")
     return 0
 
 
@@ -93,16 +93,28 @@ def _show(args: argparse.Namespace) -> int:
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 0
 
-    print(_format_summary(universe))
+    print(f"Universe name: {universe.name}")
+    print(f"Mode: {universe.mode}")
+    print(f"Age: {universe.age}")
+    print(
+        "Species: "
+        f"{summary['living_species']}/{summary['species']} active"
+    )
+    print(
+        "Civilizations: "
+        f"{summary['living_civilizations']}/{summary['civilizations']} active"
+    )
     print()
     print("Species:")
+    if not universe.species:
+        print("- none")
     for species in universe.species:
-        status = "extinct" if species.extinct else "alive"
         civ = f", civ={species.civilization_id}" if species.civilization_id else ""
         print(
             "- "
-            f"{species.name} ({status}, pop={species.population}, "
-            f"int={species.intelligence:.2f}, adapt={species.adaptability:.2f}{civ})"
+            f"{species.name} ({species.status}, pop={species.population}, "
+            f"int={species.intelligence:.2f}, coop={species.cooperation:.2f}, "
+            f"adapt={species.adaptability:.2f}{civ})"
         )
 
     print()
@@ -111,12 +123,12 @@ def _show(args: argparse.Namespace) -> int:
     if not active_civs:
         print("- none")
     for civilization in active_civs:
-        status = "collapsed" if civilization.extinct else "active"
         print(
             "- "
-            f"{civilization.name} ({status}, pop={civilization.population}, "
-            f"tech={civilization.technology:.2f}, stability={civilization.stability:.2f}, "
-            f"resources={civilization.resources:.2f})"
+            f"{civilization.name} ({civilization.status}, "
+            f"pop={civilization.population}, knowledge={civilization.knowledge:.2f}, "
+            f"organization={civilization.organization:.2f}, "
+            f"stability={civilization.stability:.2f})"
         )
 
     print()
@@ -125,7 +137,10 @@ def _show(args: argparse.Namespace) -> int:
     if not recent_events:
         print("- none")
     for event in recent_events:
-        print(f"- turn {event.turn}: {event.type} - {event.description}")
+        print(
+            f"- year {event.year}: {event.type} - "
+            f"{event.title}: {event.description}"
+        )
     return 0
 
 
@@ -140,6 +155,7 @@ def _format_summary(universe) -> str:
     summary = summarize_universe(universe)
     return (
         f"{summary['name']} | mode={summary['mode']} | turn={summary['turn']} | "
+        f"age={summary['age']} | "
         f"species={summary['living_species']}/{summary['species']} | "
         f"civilizations={summary['living_civilizations']}/{summary['civilizations']} | "
         f"events={summary['events']}"
