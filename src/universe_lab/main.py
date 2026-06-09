@@ -8,7 +8,13 @@ import sys
 from pathlib import Path
 
 from .modes import VALID_MODES, create_universe
-from .reporting import format_stats, format_timeline
+from .reporting import (
+    format_comparison,
+    format_stats,
+    format_timeline,
+    write_export,
+    write_markdown_report,
+)
 from .simulator import step_universe, summarize_universe
 from .storage import branch_universe, default_run_path, load_universe, save_universe
 
@@ -30,6 +36,12 @@ def main(argv: list[str] | None = None) -> int:
             return _stats(args)
         if args.command == "timeline":
             return _timeline(args)
+        if args.command == "export":
+            return _export(args)
+        if args.command == "report":
+            return _report(args)
+        if args.command == "compare":
+            return _compare(args)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -71,6 +83,18 @@ def build_parser() -> argparse.ArgumentParser:
     timeline = subparsers.add_parser("timeline", help="show event history")
     timeline.add_argument("--run", type=Path, required=True)
     timeline.add_argument("--limit", type=int)
+
+    export = subparsers.add_parser("export", help="export analysis JSON")
+    export.add_argument("--run", type=Path, required=True)
+    export.add_argument("--out", type=Path, required=True)
+
+    report = subparsers.add_parser("report", help="write a Markdown run report")
+    report.add_argument("--run", type=Path, required=True)
+    report.add_argument("--out", type=Path, required=True)
+
+    compare = subparsers.add_parser("compare", help="compare two saved runs")
+    compare.add_argument("--run-a", type=Path, required=True)
+    compare.add_argument("--run-b", type=Path, required=True)
 
     return parser
 
@@ -172,6 +196,27 @@ def _stats(args: argparse.Namespace) -> int:
 def _timeline(args: argparse.Namespace) -> int:
     universe = load_universe(args.run)
     print(format_timeline(universe, args.limit))
+    return 0
+
+
+def _export(args: argparse.Namespace) -> int:
+    universe = load_universe(args.run)
+    path = write_export(universe, args.out)
+    print(f"exported: {path}")
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    universe = load_universe(args.run)
+    path = write_markdown_report(universe, args.out)
+    print(f"reported: {path}")
+    return 0
+
+
+def _compare(args: argparse.Namespace) -> int:
+    run_a = load_universe(args.run_a)
+    run_b = load_universe(args.run_b)
+    print(format_comparison(run_a, run_b))
     return 0
 
 

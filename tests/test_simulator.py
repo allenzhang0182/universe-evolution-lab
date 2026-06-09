@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -254,3 +255,84 @@ def test_format_timeline_handles_empty_events():
     output = format_timeline(universe)
 
     assert "- no events recorded" in output
+
+
+def test_export_generates_analysis_json(tmp_path: Path):
+    run_path = tmp_path / "run.json"
+    export_path = tmp_path / "nested" / "export.json"
+    universe = create_universe("life_burst", "export-test", seed=808)
+    step_universe(universe, steps=4)
+    save_universe(universe, run_path)
+
+    assert main(["export", "--run", str(run_path), "--out", str(export_path)]) == 0
+
+    exported = json.loads(export_path.read_text(encoding="utf-8"))
+    assert export_path.exists()
+    assert set(exported) >= {
+        "universe",
+        "species_summary",
+        "civilization_summary",
+        "event_summary",
+        "timeline",
+    }
+    assert exported["universe"]["name"] == "export-test"
+    assert exported["species_summary"]["total"] == len(universe.species)
+    assert exported["civilization_summary"]["total"] == len(universe.civilizations)
+    assert exported["event_summary"]["total"] == len(universe.events)
+    assert exported["timeline"] == sorted(
+        exported["timeline"],
+        key=lambda event: event["year"],
+    )
+
+
+def test_report_generates_markdown(tmp_path: Path):
+    run_path = tmp_path / "report-run.json"
+    report_path = tmp_path / "docs" / "report.md"
+    universe = create_universe("minimal_observer", "report-test", seed=909)
+    step_universe(universe, steps=3)
+    save_universe(universe, run_path)
+
+    assert main(["report", "--run", str(run_path), "--out", str(report_path)]) == 0
+
+    report = report_path.read_text(encoding="utf-8")
+    assert "# Universe Report: report-test" in report
+    assert "## Basic Info" in report
+    assert "## Recent Timeline" in report
+    assert "## Civilization Overview" in report
+    assert "- none" in report
+
+
+def test_compare_two_branches_outputs_differences(tmp_path: Path, capsys):
+    run_a_path = tmp_path / "a.json"
+    run_b_path = tmp_path / "b.json"
+    universe = create_universe("civilization_seeds", "compare-a", seed=1001)
+    step_universe(universe, steps=5)
+    save_universe(universe, run_a_path)
+    branch_universe(run_a_path, "compare-b", run_b_path)
+    branch = load_universe(run_b_path)
+    step_universe(branch, steps=4)
+    save_universe(branch, run_b_path)
+
+    assert (
+        main(
+            [
+                "compare",
+                "--run-a",
+                str(run_a_path),
+                "--run-b",
+                str(run_b_path),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+
+    assert "Universe Comparison" in output
+    assert "A: compare-a" in output
+    assert "B: compare-b" in output
+    assert "Differences (B - A):" in output
+    assert "Species active:" in output
+    assert "Civilizations active:" in output
+    assert "Events total:" in output
+    assert "Event type count differences (B - A):" in output
+    assert "Conclusion:" in output
