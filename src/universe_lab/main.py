@@ -7,6 +7,13 @@ import json
 import sys
 from pathlib import Path
 
+from .batch import (
+    format_batch_results,
+    format_batch_summary,
+    run_batch,
+    summarize_run_directory,
+    write_batch_summary_markdown,
+)
 from .modes import VALID_MODES, create_universe
 from .reporting import (
     format_comparison,
@@ -42,6 +49,10 @@ def main(argv: list[str] | None = None) -> int:
             return _report(args)
         if args.command == "compare":
             return _compare(args)
+        if args.command == "batch":
+            return _batch(args)
+        if args.command == "summary":
+            return _summary(args)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -95,6 +106,17 @@ def build_parser() -> argparse.ArgumentParser:
     compare = subparsers.add_parser("compare", help="compare two saved runs")
     compare.add_argument("--run-a", type=Path, required=True)
     compare.add_argument("--run-b", type=Path, required=True)
+
+    batch = subparsers.add_parser("batch", help="create and step many runs")
+    batch.add_argument("--mode", choices=VALID_MODES, required=True)
+    batch.add_argument("--count", type=int, required=True)
+    batch.add_argument("--steps", type=int, required=True)
+    batch.add_argument("--prefix", required=True)
+
+    summary = subparsers.add_parser("summary", help="summarize a batch of runs")
+    summary.add_argument("--runs", type=Path, required=True)
+    summary.add_argument("--prefix", required=True)
+    summary.add_argument("--out", type=Path)
 
     return parser
 
@@ -217,6 +239,21 @@ def _compare(args: argparse.Namespace) -> int:
     run_a = load_universe(args.run_a)
     run_b = load_universe(args.run_b)
     print(format_comparison(run_a, run_b))
+    return 0
+
+
+def _batch(args: argparse.Namespace) -> int:
+    results = run_batch(args.mode, args.count, args.steps, args.prefix)
+    print(format_batch_results(results))
+    return 0
+
+
+def _summary(args: argparse.Namespace) -> int:
+    summary = summarize_run_directory(args.runs, args.prefix)
+    print(format_batch_summary(summary))
+    if args.out:
+        path = write_batch_summary_markdown(summary, args.out)
+        print(f"summary report: {path}")
     return 0
 
 

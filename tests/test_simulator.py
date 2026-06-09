@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from universe_lab.batch import format_batch_summary, run_batch, summarize_run_directory
 from universe_lab.main import main
 from universe_lab.modes import VALID_MODES, create_universe
 from universe_lab.reporting import build_stats, format_timeline
@@ -336,3 +337,128 @@ def test_compare_two_branches_outputs_differences(tmp_path: Path, capsys):
     assert "Events total:" in output
     assert "Event type count differences (B - A):" in output
     assert "Conclusion:" in output
+
+
+def test_batch_generates_requested_run_files(tmp_path: Path):
+    results = run_batch(
+        mode="life_burst",
+        count=3,
+        steps=2,
+        prefix="batch_unit",
+        run_dir=tmp_path,
+    )
+
+    assert len(results) == 3
+    assert [result.name for result in results] == [
+        "batch_unit_001",
+        "batch_unit_002",
+        "batch_unit_003",
+    ]
+    for result in results:
+        assert result.path.exists()
+        loaded = load_universe(result.path)
+        assert loaded.age == 2
+        assert result.age == 2
+
+
+def test_batch_allows_zero_steps(tmp_path: Path):
+    results = run_batch(
+        mode="minimal_observer",
+        count=1,
+        steps=0,
+        prefix="zero_step",
+        run_dir=tmp_path,
+    )
+
+    loaded = load_universe(results[0].path)
+    assert loaded.age == 0
+    assert loaded.events
+
+
+def test_batch_rejects_invalid_count(tmp_path: Path):
+    with pytest.raises(ValueError, match="count"):
+        run_batch(
+            mode="life_burst",
+            count=0,
+            steps=1,
+            prefix="bad_batch",
+            run_dir=tmp_path,
+        )
+
+
+def test_summary_reads_multiple_runs_and_aggregates(tmp_path: Path):
+    run_batch(
+        mode="life_burst",
+        count=4,
+        steps=3,
+        prefix="summary_unit",
+        run_dir=tmp_path,
+    )
+
+    summary = summarize_run_directory(tmp_path, "summary_unit")
+
+    assert summary["runs_count"] == 4
+    assert summary["modes_involved"] == ["life_burst"]
+    assert summary["average_age"] == 3.0
+    assert summary["average_active_species"] > 0
+    assert summary["average_events_per_run"] >= 4.0
+    assert summary["event_counts_by_type"]
+    assert "most active species" in summary["interesting_runs"]
+    assert "most events" in summary["interesting_runs"]
+
+
+def test_summary_without_matching_files_is_friendly(tmp_path: Path, capsys):
+    summary = summarize_run_directory(tmp_path, "missing_batch")
+    text = format_batch_summary(summary)
+
+    assert summary["runs_count"] == 0
+    assert "No runs found for prefix 'missing_batch'" in text
+    assert (
+        main(
+            [
+                "summary",
+                "--runs",
+                str(tmp_path),
+                "--prefix",
+                "missing_batch",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "No runs found for prefix 'missing_batch'" in output
+
+
+def test_summary_out_generates_markdown(tmp_path: Path, capsys):
+    run_batch(
+        mode="civilization_seeds",
+        count=2,
+        steps=2,
+        prefix="summary_out",
+        run_dir=tmp_path,
+    )
+    out_path = tmp_path / "docs" / "summary.md"
+
+    assert (
+        main(
+            [
+                "summary",
+                "--runs",
+                str(tmp_path),
+                "--prefix",
+                "summary_out",
+                "--out",
+                str(out_path),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    report = out_path.read_text(encoding="utf-8")
+
+    assert out_path.exists()
+    assert "summary report:" in output
+    assert "# Batch Summary: summary_out" in report
+    assert "## Overview" in report
+    assert "## Event Counts" in report
+    assert "## Interesting Runs" in report
