@@ -4,6 +4,7 @@ import pytest
 
 from universe_lab.main import main
 from universe_lab.modes import VALID_MODES, create_universe
+from universe_lab.reporting import build_stats, format_timeline
 from universe_lab.simulator import step_universe, summarize_universe
 from universe_lab.storage import branch_universe, load_universe, save_universe
 
@@ -163,3 +164,93 @@ def test_cli_create_step_show_and_branch(tmp_path: Path, capsys):
         == 0
     )
     assert load_universe(branch_path).branch_of == stepped.id
+
+
+@pytest.mark.parametrize("mode", VALID_MODES)
+def test_cli_stats_runs_for_all_modes(mode: str, tmp_path: Path, capsys):
+    run_path = tmp_path / f"{mode}.json"
+    universe = create_universe(mode, f"{mode}-stats", seed=202)
+    step_universe(universe, steps=2)
+    save_universe(universe, run_path)
+
+    assert main(["stats", "--run", str(run_path)]) == 0
+    output = capsys.readouterr().out
+
+    assert f"Universe name: {mode}-stats" in output
+    assert f"Mode: {mode}" in output
+    assert "Events count by type:" in output
+
+
+def test_stats_handles_run_without_civilizations(tmp_path: Path, capsys):
+    run_path = tmp_path / "no-civs.json"
+    universe = create_universe("life_burst", "no-civs", seed=303)
+    save_universe(universe, run_path)
+
+    assert main(["stats", "--run", str(run_path)]) == 0
+    output = capsys.readouterr().out
+
+    assert "Civilizations total: 0" in output
+    assert "Civilizations active: 0" in output
+    assert "Civilizations collapsed: 0" in output
+    assert "Total civilization population: 0" in output
+    assert "Average civilization knowledge: 0.00" in output
+
+
+def test_timeline_outputs_events(tmp_path: Path, capsys):
+    run_path = tmp_path / "timeline.json"
+    universe = create_universe("minimal_observer", "timeline", seed=404)
+    step_universe(universe, steps=3)
+    save_universe(universe, run_path)
+
+    assert main(["timeline", "--run", str(run_path)]) == 0
+    output = capsys.readouterr().out
+
+    assert "Timeline for timeline" in output
+    assert "- year 0:" in output
+    assert any(line.startswith("- year 3:") for line in output.splitlines())
+
+
+def test_timeline_limit_outputs_recent_events_in_year_order(tmp_path: Path, capsys):
+    run_path = tmp_path / "timeline-limit.json"
+    universe = create_universe("life_burst", "timeline-limit", seed=505)
+    step_universe(universe, steps=8)
+    save_universe(universe, run_path)
+
+    assert main(["timeline", "--run", str(run_path), "--limit", "4"]) == 0
+    output = capsys.readouterr().out
+    event_lines = [line for line in output.splitlines() if line.startswith("- year")]
+    years = [int(line.split(":", maxsplit=1)[0].removeprefix("- year ")) for line in event_lines]
+
+    assert len(event_lines) == 4
+    assert years == sorted(years)
+
+
+def test_json_load_then_stats_are_reasonable(tmp_path: Path):
+    run_path = tmp_path / "stats-round-trip.json"
+    universe = create_universe("civilization_seeds", "stats-round-trip", seed=606)
+    step_universe(universe, steps=5)
+    save_universe(universe, run_path)
+
+    loaded = load_universe(run_path)
+    stats = build_stats(loaded)
+
+    assert stats["universe_name"] == "stats-round-trip"
+    assert stats["age"] == 5
+    assert stats["species_total"] == len(loaded.species)
+    assert stats["species_active"] + stats["species_extinct"] == len(loaded.species)
+    assert stats["civilizations_total"] == len(loaded.civilizations)
+    assert (
+        stats["civilizations_active"] + stats["civilizations_collapsed"]
+        == len(loaded.civilizations)
+    )
+    assert stats["events_total"] == len(loaded.events)
+    assert stats["events_count_by_type"]
+
+
+def test_format_timeline_handles_empty_events():
+    universe = create_universe("life_burst", "empty-events", seed=707)
+    universe.events = []
+
+    output = format_timeline(universe)
+
+    assert "- no events recorded" in output

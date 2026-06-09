@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .modes import VALID_MODES, create_universe
+from .reporting import format_stats, format_timeline
 from .simulator import step_universe, summarize_universe
 from .storage import branch_universe, default_run_path, load_universe, save_universe
 
@@ -25,6 +26,10 @@ def main(argv: list[str] | None = None) -> int:
             return _show(args)
         if args.command == "branch":
             return _branch(args)
+        if args.command == "stats":
+            return _stats(args)
+        if args.command == "timeline":
+            return _timeline(args)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -59,6 +64,13 @@ def build_parser() -> argparse.ArgumentParser:
     branch.add_argument("--run", type=Path, required=True)
     branch.add_argument("--name", required=True)
     branch.add_argument("--output", type=Path)
+
+    stats = subparsers.add_parser("stats", help="show aggregate run statistics")
+    stats.add_argument("--run", type=Path, required=True)
+
+    timeline = subparsers.add_parser("timeline", help="show event history")
+    timeline.add_argument("--run", type=Path, required=True)
+    timeline.add_argument("--limit", type=int)
 
     return parser
 
@@ -148,6 +160,18 @@ def _branch(args: argparse.Namespace) -> int:
     branch, path = branch_universe(args.run, args.name, args.output)
     print(f"branched: {path}")
     print(_format_summary(branch))
+    return 0
+
+
+def _stats(args: argparse.Namespace) -> int:
+    universe = load_universe(args.run)
+    print(format_stats(universe))
+    return 0
+
+
+def _timeline(args: argparse.Namespace) -> int:
+    universe = load_universe(args.run)
+    print(format_timeline(universe, args.limit))
     return 0
 
 
