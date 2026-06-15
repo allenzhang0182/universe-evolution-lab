@@ -4,7 +4,7 @@
 
 ## 示例 1：单个 life_burst 宇宙实验
 
-目标：创建一个生命大爆炸宇宙，推进 30 步，查看状态、统计和事件时间线。
+目标：创建一个复杂性涌现/生命大爆发宇宙，推进 30 步，查看结构、Population、物种、文明和事件时间线。
 
 ```bash
 .venv/bin/python -m universe_lab.main create --mode life_burst --name example_life
@@ -23,8 +23,9 @@
 
 可以观察：
 
-- 哪些物种处于 growing、stable、declining 或 extinct。
-- 是否出现了 proto civilization。
+- 哪些结构处于 inert、complex_structure、self_maintaining、proto_life 或 life_lineage。
+- 是否出现 Population 或 Species。
+- 后续是否出现 proto civilization。
 - 哪些事件类型出现频率最高。
 
 ## 示例 2：civilization_seeds 文明种子实验

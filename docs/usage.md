@@ -22,6 +22,7 @@
 - `--name` 会作为宇宙名称，也会用于默认存档路径。
 - 可选 `--seed` 用于创建可复现实验。
 - 可选 `--output` 用于指定存档路径。
+- `life_burst` 不再直接投放物种；它从若干无生命复杂结构开始。
 
 ## step
 
@@ -41,7 +42,7 @@
 
 ## show
 
-用途：查看一个宇宙当前状态、生命状态、文明状态和最近事件。
+用途：查看一个宇宙当前状态、复杂结构、Population、生命状态、文明状态和最近事件。
 
 示例：
 
@@ -53,6 +54,7 @@
 说明：
 
 - 默认展示最近 10 条事件。
+- `life_burst` 会先展示 structures 和 populations；这些层级可能为空或尚未进入生命分类。
 - 如果没有文明，会显示 `none`，不会报错。
 - 可选 `--json` 输出简要 JSON 摘要。
 
@@ -68,6 +70,8 @@
 
 说明：
 
+- 包括结构总数、活跃结构、崩溃结构、分类计数、平均复杂度、平均稳定性。
+- 包括 Population 总数、活跃 Population、灭绝 Population、总规模和平均适应性。
 - 包括物种总数、活跃物种、灭绝物种、种群、平均智能、平均合作、平均适应力。
 - 包括文明总数、活跃文明、崩溃文明、文明人口、平均知识、组织度、稳定性。
 - 包括事件总数和按类型计数。
@@ -117,7 +121,7 @@
 
 说明：
 
-- 导出内容包括宇宙基本信息、物种摘要、文明摘要、事件摘要、简化物种列表、简化文明列表和完整时间线。
+- 导出内容包括宇宙基本信息、结构摘要、Population 摘要、物种摘要、文明摘要、事件摘要、简化结构列表、简化 Population 列表、简化物种列表、简化文明列表和完整时间线。
 - 平均值保留 2 位小数。
 - `--out` 的父目录不存在时会自动创建。
 
@@ -133,7 +137,7 @@
 
 说明：
 
-- 报告包括 Basic Info、Species Summary、Civilization Summary、Event Summary、Species Overview、Civilization Overview 和 Recent Timeline。
+- 报告包括 Basic Info、Structure Summary、Population Summary、Species Summary、Civilization Summary、Event Summary、Structure Overview、Population Overview、Species Overview、Civilization Overview 和 Recent Timeline。
 - Recent Timeline 默认使用最近 20 条事件。
 - 没有文明时会写明 `none`。
 

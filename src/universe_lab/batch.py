@@ -82,6 +82,8 @@ def summarize_run_directory(run_dir: str | Path, prefix: str) -> dict[str, Any]:
             "run_dir": str(directory),
             "runs_count": 0,
             "modes_involved": [],
+            "average_active_structures": 0.0,
+            "average_active_populations": 0.0,
             "average_age": 0.0,
             "average_active_species": 0.0,
             "total_extinct_species": 0,
@@ -103,6 +105,12 @@ def summarize_run_directory(run_dir: str | Path, prefix: str) -> dict[str, Any]:
         "run_dir": str(directory),
         "runs_count": len(records),
         "modes_involved": sorted({record["mode"] for record in records}),
+        "average_active_structures": _round2(
+            _average(record["stats"]["structures_active"] for record in records)
+        ),
+        "average_active_populations": _round2(
+            _average(record["stats"]["populations_active"] for record in records)
+        ),
         "average_age": _round2(_average(record["age"] for record in records)),
         "average_active_species": _round2(
             _average(record["stats"]["species_active"] for record in records)
@@ -146,6 +154,8 @@ def format_batch_summary(summary: dict[str, Any]) -> str:
         f"Prefix: {summary['prefix']}",
         f"Runs count: {summary['runs_count']}",
         f"Modes involved: {', '.join(summary['modes_involved'])}",
+        f"Average active structures: {summary['average_active_structures']:.2f}",
+        f"Average active populations: {summary['average_active_populations']:.2f}",
         f"Average age: {summary['average_age']:.2f}",
         f"Average active species: {summary['average_active_species']:.2f}",
         f"Total extinct species: {summary['total_extinct_species']}",
@@ -189,6 +199,8 @@ def format_batch_summary_markdown(summary: dict[str, Any]) -> str:
         "",
         f"- Runs count: {summary['runs_count']}",
         f"- Modes involved: {', '.join(summary['modes_involved'])}",
+        f"- Average active structures: {summary['average_active_structures']:.2f}",
+        f"- Average active populations: {summary['average_active_populations']:.2f}",
         f"- Average age: {summary['average_age']:.2f}",
         f"- Average active species: {summary['average_active_species']:.2f}",
         f"- Total extinct species: {summary['total_extinct_species']}",

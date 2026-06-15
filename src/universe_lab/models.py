@@ -45,6 +45,82 @@ class Event:
 
 
 @dataclass
+class EmergentStructure:
+    id: str
+    name: str
+    age: int
+    scale: str
+    substrate: str
+    complexity: float
+    stability: float
+    energy_flow: float
+    information_retention: float
+    replication_potential: float
+    variation_rate: float
+    boundary_strength: float
+    adaptation_score: float
+    status: str
+    classification: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "EmergentStructure":
+        return cls(
+            id=str(data["id"]),
+            name=str(data["name"]),
+            age=int(data.get("age", 0)),
+            scale=str(data.get("scale", "local")),
+            substrate=str(data.get("substrate", "unknown")),
+            complexity=float(data.get("complexity", 0.0)),
+            stability=float(data.get("stability", 0.0)),
+            energy_flow=float(data.get("energy_flow", 0.0)),
+            information_retention=float(data.get("information_retention", 0.0)),
+            replication_potential=float(data.get("replication_potential", 0.0)),
+            variation_rate=float(data.get("variation_rate", 0.02)),
+            boundary_strength=float(data.get("boundary_strength", 0.0)),
+            adaptation_score=float(data.get("adaptation_score", 0.0)),
+            status=str(data.get("status", "active")),
+            classification=str(data.get("classification", "inert")),
+        )
+
+
+@dataclass
+class Population:
+    id: str
+    name: str
+    source_structure_id: str
+    lineage_id: str
+    age: int
+    size: int
+    diversity: float
+    adaptation: float
+    reproduction: float
+    stability: float
+    status: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Population":
+        return cls(
+            id=str(data["id"]),
+            name=str(data["name"]),
+            source_structure_id=str(data.get("source_structure_id", "")),
+            lineage_id=str(data.get("lineage_id", "")),
+            age=int(data.get("age", 0)),
+            size=int(data.get("size", 0)),
+            diversity=float(data.get("diversity", 0.0)),
+            adaptation=float(data.get("adaptation", 0.0)),
+            reproduction=float(data.get("reproduction", 0.0)),
+            stability=float(data.get("stability", 0.0)),
+            status=str(data.get("status", "active")),
+        )
+
+
+@dataclass
 class Species:
     id: str
     name: str
@@ -60,6 +136,7 @@ class Species:
     age: int = 0
     extinct: bool = False
     civilization_id: str | None = None
+    source_population_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -85,6 +162,7 @@ class Species:
             age=int(data.get("age", 0)),
             extinct=extinct,
             civilization_id=data.get("civilization_id"),
+            source_population_id=data.get("source_population_id"),
         )
 
 
@@ -166,6 +244,8 @@ class Universe:
     age: int
     seed: int
     config: SimulationConfig
+    structures: list[EmergentStructure] = field(default_factory=list)
+    populations: list[Population] = field(default_factory=list)
     species: list[Species] = field(default_factory=list)
     civilizations: list[Civilization] = field(default_factory=list)
     events: list[Event] = field(default_factory=list)
@@ -182,6 +262,8 @@ class Universe:
             "age": self.age,
             "seed": self.seed,
             "config": self.config.to_dict(),
+            "structures": [item.to_dict() for item in self.structures],
+            "populations": [item.to_dict() for item in self.populations],
             "species": [item.to_dict() for item in self.species],
             "civilizations": [item.to_dict() for item in self.civilizations],
             "events": [item.to_dict() for item in self.events],
@@ -208,6 +290,14 @@ class Universe:
             age=int(data.get("age", data.get("turn", 0))),
             seed=int(data.get("seed", config_data["seed"])),
             config=SimulationConfig.from_dict(config_data),
+            structures=[
+                EmergentStructure.from_dict(item)
+                for item in data.get("structures", [])
+            ],
+            populations=[
+                Population.from_dict(item)
+                for item in data.get("populations", [])
+            ],
             species=[Species.from_dict(item) for item in data.get("species", [])],
             civilizations=[
                 Civilization.from_dict(item)

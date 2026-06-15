@@ -12,6 +12,21 @@ from .models import Event, Universe
 
 
 def build_stats(universe: Universe) -> dict[str, Any]:
+    active_structures = [
+        structure for structure in universe.structures if structure.status != "collapsed"
+    ]
+    collapsed_structures = [
+        structure for structure in universe.structures if structure.status == "collapsed"
+    ]
+    classification_counts = Counter(
+        structure.classification for structure in universe.structures
+    )
+    active_populations = [
+        population for population in universe.populations if population.status != "extinct"
+    ]
+    extinct_populations = [
+        population for population in universe.populations if population.status == "extinct"
+    ]
     active_species = [
         species for species in universe.species if species.status != "extinct"
     ]
@@ -34,6 +49,31 @@ def build_stats(universe: Universe) -> dict[str, Any]:
         "universe_name": universe.name,
         "mode": universe.mode,
         "age": universe.age,
+        "structures_total": len(universe.structures),
+        "structures_active": len(active_structures),
+        "structures_collapsed": len(collapsed_structures),
+        "average_structure_complexity": _average(
+            structure.complexity for structure in universe.structures
+        ),
+        "average_structure_stability": _average(
+            structure.stability for structure in universe.structures
+        ),
+        "structure_classification_counts": dict(sorted(classification_counts.items())),
+        "populations_total": len(universe.populations),
+        "populations_active": len(active_populations),
+        "populations_extinct": len(extinct_populations),
+        "total_population_size": sum(
+            population.size for population in universe.populations
+        ),
+        "average_population_diversity": _average(
+            population.diversity for population in universe.populations
+        ),
+        "average_population_adaptation": _average(
+            population.adaptation for population in universe.populations
+        ),
+        "average_population_stability": _average(
+            population.stability for population in universe.populations
+        ),
         "species_total": len(universe.species),
         "species_active": len(active_species),
         "species_extinct": len(extinct_species),
@@ -75,6 +115,42 @@ def format_stats(universe: Universe) -> str:
         f"Universe name: {stats['universe_name']}",
         f"Mode: {stats['mode']}",
         f"Age: {stats['age']}",
+        f"Structures total: {stats['structures_total']}",
+        f"Structures active: {stats['structures_active']}",
+        f"Structures collapsed: {stats['structures_collapsed']}",
+        (
+            "Average structure complexity: "
+            f"{stats['average_structure_complexity']:.2f}"
+        ),
+        (
+            "Average structure stability: "
+            f"{stats['average_structure_stability']:.2f}"
+        ),
+        "Structure classification counts:",
+    ]
+    lines.extend(_plain_count_lines(stats["structure_classification_counts"]))
+    lines.extend(
+        [
+            f"Populations total: {stats['populations_total']}",
+            f"Populations active: {stats['populations_active']}",
+            f"Populations extinct: {stats['populations_extinct']}",
+            f"Total population size: {stats['total_population_size']}",
+            (
+                "Average population diversity: "
+                f"{stats['average_population_diversity']:.2f}"
+            ),
+            (
+                "Average population adaptation: "
+                f"{stats['average_population_adaptation']:.2f}"
+            ),
+            (
+                "Average population stability: "
+                f"{stats['average_population_stability']:.2f}"
+            ),
+        ]
+    )
+    lines.extend(
+        [
         f"Species total: {stats['species_total']}",
         f"Species active: {stats['species_active']}",
         f"Species extinct: {stats['species_extinct']}",
@@ -112,7 +188,8 @@ def format_stats(universe: Universe) -> str:
         ),
         f"Events total: {stats['events_total']}",
         "Events count by type:",
-    ]
+        ]
+    )
     event_counts = stats["events_count_by_type"]
     if not event_counts:
         lines.append("- none")
@@ -157,9 +234,17 @@ def build_export_data(universe: Universe) -> dict[str, Any]:
             "age": universe.age,
             "seed": universe.seed,
         },
+        "structure_summary": _structure_summary(stats),
+        "population_summary": _population_summary(stats),
         "species_summary": _species_summary(stats),
         "civilization_summary": _civilization_summary(stats),
         "event_summary": _event_summary(stats),
+        "structures": [
+            _simplify_structure(structure) for structure in universe.structures
+        ],
+        "populations": [
+            _simplify_population(population) for population in universe.populations
+        ],
         "species": [_simplify_species(species) for species in universe.species],
         "civilizations": [
             _simplify_civilization(civilization)
@@ -180,12 +265,14 @@ def write_export(universe: Universe, path: str | Path) -> Path:
 
 def format_markdown_report(universe: Universe, recent_limit: int = 20) -> str:
     export_data = build_export_data(universe)
+    structure_summary = export_data["structure_summary"]
+    population_summary = export_data["population_summary"]
     species_summary = export_data["species_summary"]
     civilization_summary = export_data["civilization_summary"]
     event_summary = export_data["event_summary"]
     recent_events = select_timeline_events(universe, recent_limit)
 
-    lines = [
+    lines: list[str] = [
         f"# Universe Report: {universe.name}",
         "",
         "## Basic Info",
@@ -195,35 +282,91 @@ def format_markdown_report(universe: Universe, recent_limit: int = 20) -> str:
         f"- Age: {universe.age}",
         f"- Seed: {universe.seed}",
         "",
-        "## Species Summary",
+        "## Structure Summary",
         "",
-        f"- Total: {species_summary['total']}",
-        f"- Active: {species_summary['active']}",
-        f"- Extinct: {species_summary['extinct']}",
-        f"- Total population: {species_summary['total_population']}",
-        f"- Average intelligence: {species_summary['average_intelligence']:.2f}",
-        f"- Average cooperation: {species_summary['average_cooperation']:.2f}",
-        f"- Average adaptability: {species_summary['average_adaptability']:.2f}",
-        "",
-        "## Civilization Summary",
-        "",
-        f"- Total: {civilization_summary['total']}",
-        f"- Active: {civilization_summary['active']}",
-        f"- Collapsed: {civilization_summary['collapsed']}",
-        f"- Total population: {civilization_summary['total_population']}",
-        f"- Average knowledge: {civilization_summary['average_knowledge']:.2f}",
-        (
-            "- Average organization: "
-            f"{civilization_summary['average_organization']:.2f}"
-        ),
-        f"- Average stability: {civilization_summary['average_stability']:.2f}",
-        "",
-        "## Event Summary",
-        "",
-        f"- Total: {event_summary['total']}",
-        "- Counts by type:",
+        f"- Total: {structure_summary['total']}",
+        f"- Active: {structure_summary['active']}",
+        f"- Collapsed: {structure_summary['collapsed']}",
+        f"- Average complexity: {structure_summary['average_complexity']:.2f}",
+        f"- Average stability: {structure_summary['average_stability']:.2f}",
+        "- Classification counts:",
     ]
+    lines.extend(_markdown_count_lines(structure_summary["classification_counts"]))
+    lines.extend(
+        [
+            "",
+            "## Population Summary",
+            "",
+            f"- Total: {population_summary['total']}",
+            f"- Active: {population_summary['active']}",
+            f"- Extinct: {population_summary['extinct']}",
+            f"- Total size: {population_summary['total_size']}",
+            f"- Average diversity: {population_summary['average_diversity']:.2f}",
+            f"- Average adaptation: {population_summary['average_adaptation']:.2f}",
+            f"- Average stability: {population_summary['average_stability']:.2f}",
+            "",
+            "## Species Summary",
+            "",
+            f"- Total: {species_summary['total']}",
+            f"- Active: {species_summary['active']}",
+            f"- Extinct: {species_summary['extinct']}",
+            f"- Total population: {species_summary['total_population']}",
+            f"- Average intelligence: {species_summary['average_intelligence']:.2f}",
+            f"- Average cooperation: {species_summary['average_cooperation']:.2f}",
+            f"- Average adaptability: {species_summary['average_adaptability']:.2f}",
+            "",
+        ]
+    )
+    lines.extend(
+        [
+            "## Civilization Summary",
+            "",
+            f"- Total: {civilization_summary['total']}",
+            f"- Active: {civilization_summary['active']}",
+            f"- Collapsed: {civilization_summary['collapsed']}",
+            f"- Total population: {civilization_summary['total_population']}",
+            f"- Average knowledge: {civilization_summary['average_knowledge']:.2f}",
+            (
+                "- Average organization: "
+                f"{civilization_summary['average_organization']:.2f}"
+            ),
+            f"- Average stability: {civilization_summary['average_stability']:.2f}",
+            "",
+            "## Event Summary",
+            "",
+            f"- Total: {event_summary['total']}",
+            "- Counts by type:",
+        ]
+    )
     lines.extend(_markdown_count_lines(event_summary["counts_by_type"]))
+
+    lines.extend(["", "## Structure Overview", ""])
+    if not export_data["structures"]:
+        lines.append("- none")
+    else:
+        for structure in export_data["structures"]:
+            lines.append(
+                "- "
+                f"{structure['name']} ({structure['status']}, "
+                f"{structure['classification']}): "
+                f"complexity={structure['complexity']:.2f}, "
+                f"stability={structure['stability']:.2f}, "
+                f"replication={structure['replication_potential']:.2f}"
+            )
+
+    lines.extend(["", "## Population Overview", ""])
+    if not export_data["populations"]:
+        lines.append("- none")
+    else:
+        for population in export_data["populations"]:
+            lines.append(
+                "- "
+                f"{population['name']} ({population['status']}): "
+                f"size={population['size']}, "
+                f"adaptation={population['adaptation']:.2f}, "
+                f"reproduction={population['reproduction']:.2f}, "
+                f"stability={population['stability']:.2f}"
+            )
 
     lines.extend(
         [
@@ -297,6 +440,10 @@ def format_comparison(run_a: Universe, run_b: Universe) -> str:
     data_b = build_export_data(run_b)
     species_a = data_a["species_summary"]
     species_b = data_b["species_summary"]
+    structures_a = data_a["structure_summary"]
+    structures_b = data_b["structure_summary"]
+    populations_a = data_a["population_summary"]
+    populations_b = data_b["population_summary"]
     civ_a = data_a["civilization_summary"]
     civ_b = data_b["civilization_summary"]
     event_a = data_a["event_summary"]
@@ -314,6 +461,22 @@ def format_comparison(run_a: Universe, run_b: Universe) -> str:
         ),
         "",
         "Differences (B - A):",
+        _diff_line("Structures active", structures_a["active"], structures_b["active"]),
+        _diff_line(
+            "Structures collapsed",
+            structures_a["collapsed"],
+            structures_b["collapsed"],
+        ),
+        _diff_line(
+            "Populations active",
+            populations_a["active"],
+            populations_b["active"],
+        ),
+        _diff_line(
+            "Populations extinct",
+            populations_a["extinct"],
+            populations_b["extinct"],
+        ),
         _diff_line("Species active", species_a["active"], species_b["active"]),
         _diff_line("Species extinct", species_a["extinct"], species_b["extinct"]),
         _diff_line(
@@ -338,6 +501,13 @@ def format_comparison(run_a: Universe, run_b: Universe) -> str:
             event_b["counts_by_type"],
         )
     )
+    lines.append("Classification count differences (B - A):")
+    lines.extend(
+        _event_diff_lines(
+            structures_a["classification_counts"],
+            structures_b["classification_counts"],
+        )
+    )
     lines.extend(["", "Conclusion:"])
     lines.extend(_comparison_conclusions(species_a, species_b, civ_a, civ_b, event_a, event_b))
     return "\n".join(lines)
@@ -352,6 +522,29 @@ def _average(values: Iterable[float]) -> float:
 
 def _round2(value: float) -> float:
     return round(value, 2)
+
+
+def _structure_summary(stats: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "total": stats["structures_total"],
+        "active": stats["structures_active"],
+        "collapsed": stats["structures_collapsed"],
+        "average_complexity": _round2(stats["average_structure_complexity"]),
+        "average_stability": _round2(stats["average_structure_stability"]),
+        "classification_counts": stats["structure_classification_counts"],
+    }
+
+
+def _population_summary(stats: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "total": stats["populations_total"],
+        "active": stats["populations_active"],
+        "extinct": stats["populations_extinct"],
+        "total_size": stats["total_population_size"],
+        "average_diversity": _round2(stats["average_population_diversity"]),
+        "average_adaptation": _round2(stats["average_population_adaptation"]),
+        "average_stability": _round2(stats["average_population_stability"]),
+    }
 
 
 def _species_summary(stats: dict[str, Any]) -> dict[str, Any]:
@@ -382,6 +575,42 @@ def _event_summary(stats: dict[str, Any]) -> dict[str, Any]:
     return {
         "total": stats["events_total"],
         "counts_by_type": stats["events_count_by_type"],
+    }
+
+
+def _simplify_structure(structure: Any) -> dict[str, Any]:
+    return {
+        "id": structure.id,
+        "name": structure.name,
+        "age": structure.age,
+        "scale": structure.scale,
+        "substrate": structure.substrate,
+        "status": structure.status,
+        "classification": structure.classification,
+        "complexity": _round2(structure.complexity),
+        "stability": _round2(structure.stability),
+        "energy_flow": _round2(structure.energy_flow),
+        "information_retention": _round2(structure.information_retention),
+        "replication_potential": _round2(structure.replication_potential),
+        "variation_rate": _round2(structure.variation_rate),
+        "boundary_strength": _round2(structure.boundary_strength),
+        "adaptation_score": _round2(structure.adaptation_score),
+    }
+
+
+def _simplify_population(population: Any) -> dict[str, Any]:
+    return {
+        "id": population.id,
+        "name": population.name,
+        "source_structure_id": population.source_structure_id,
+        "lineage_id": population.lineage_id,
+        "age": population.age,
+        "status": population.status,
+        "size": population.size,
+        "diversity": _round2(population.diversity),
+        "adaptation": _round2(population.adaptation),
+        "reproduction": _round2(population.reproduction),
+        "stability": _round2(population.stability),
     }
 
 
@@ -430,6 +659,12 @@ def _markdown_count_lines(counts: dict[str, int]) -> list[str]:
     if not counts:
         return ["  - none"]
     return [f"  - {event_type}: {count}" for event_type, count in counts.items()]
+
+
+def _plain_count_lines(counts: dict[str, int]) -> list[str]:
+    if not counts:
+        return ["- none"]
+    return [f"- {event_type}: {count}" for event_type, count in counts.items()]
 
 
 def _diff_line(label: str, value_a: int, value_b: int) -> str:

@@ -19,22 +19,28 @@ def test_create_all_modes_generate_universe(mode: str):
     assert universe.name == f"{mode}-test"
     assert universe.age == 0
     assert universe.events
-    assert universe.species
+    assert universe.structures or universe.species or universe.civilizations
 
 
-def test_life_burst_species_have_evolution_fields():
+def test_life_burst_starts_with_emergent_structures():
     universe = create_universe("life_burst", "life", seed=123)
 
-    assert 6 <= len(universe.species) <= 10
+    assert 6 <= len(universe.structures) <= 12
+    assert universe.species == []
+    assert universe.populations == []
     assert universe.civilizations == []
-    for species in universe.species:
-        assert species.population > 0
-        assert 0 <= species.adaptability <= 1
-        assert 0 <= species.intelligence <= 1
-        assert 0 <= species.cooperation <= 1
-        assert 0 <= species.aggression <= 1
-        assert 0 < species.mutation_rate <= 1
-        assert species.status in {"alive", "stable", "growing", "declining"}
+    assert universe.events[0].type == "structure_formed"
+    for structure in universe.structures:
+        assert structure.status == "active"
+        assert structure.classification in {"inert", "complex_structure"}
+        assert 0 <= structure.complexity <= 1
+        assert 0 <= structure.stability <= 1
+        assert 0 <= structure.energy_flow <= 1
+        assert 0 <= structure.information_retention <= 1
+        assert 0 <= structure.replication_potential <= 1
+        assert 0 < structure.variation_rate <= 1
+        assert 0 <= structure.boundary_strength <= 1
+        assert 0 <= structure.adaptation_score <= 1
 
 
 def test_civilization_seeds_create_three_distinct_civilizations():
@@ -74,6 +80,17 @@ def test_life_burst_long_run_remains_valid_and_may_spawn_civilization():
     step_universe(universe, steps=90)
 
     assert universe.age == 90
+    assert universe.structures
+    assert len(universe.populations) >= 0
+    assert {
+        structure.classification for structure in universe.structures
+    } <= {
+        "inert",
+        "complex_structure",
+        "self_maintaining",
+        "proto_life",
+        "life_lineage",
+    }
     assert len(universe.civilizations) >= 0
     assert all(species.population >= 0 for species in universe.species)
     assert all(civilization.population >= 0 for civilization in universe.civilizations)
@@ -81,6 +98,26 @@ def test_life_burst_long_run_remains_valid_and_may_spawn_civilization():
         civilization.status in {"rising", "stable", "declining", "collapsed"}
         for civilization in universe.civilizations
     )
+
+
+def test_life_burst_step_changes_structure_state():
+    universe = create_universe("life_burst", "structure-step", seed=88)
+    before = [
+        (structure.age, structure.complexity, structure.stability)
+        for structure in universe.structures
+    ]
+    starting_events = len(universe.events)
+
+    step_universe(universe, steps=3)
+    after = [
+        (structure.age, structure.complexity, structure.stability)
+        for structure in universe.structures[: len(before)]
+    ]
+
+    assert universe.age == 3
+    assert len(universe.events) > starting_events
+    assert any(item[0] > 0 for item in after)
+    assert before != after
 
 
 def test_branch_copies_history_with_new_name_and_id(tmp_path: Path):
@@ -400,7 +437,7 @@ def test_summary_reads_multiple_runs_and_aggregates(tmp_path: Path):
     assert summary["runs_count"] == 4
     assert summary["modes_involved"] == ["life_burst"]
     assert summary["average_age"] == 3.0
-    assert summary["average_active_species"] > 0
+    assert summary["average_active_structures"] > 0
     assert summary["average_events_per_run"] >= 4.0
     assert summary["event_counts_by_type"]
     assert "most active species" in summary["interesting_runs"]
@@ -462,3 +499,57 @@ def test_summary_out_generates_markdown(tmp_path: Path, capsys):
     assert "## Overview" in report
     assert "## Event Counts" in report
     assert "## Interesting Runs" in report
+
+
+def test_old_json_without_structures_or_populations_loads(tmp_path: Path):
+    run_path = tmp_path / "old-run.json"
+    universe = create_universe("civilization_seeds", "old-run", seed=1111)
+    data = universe.to_dict()
+    data.pop("structures")
+    data.pop("populations")
+    run_path.write_text(json.dumps(data), encoding="utf-8")
+
+    loaded = load_universe(run_path)
+
+    assert loaded.structures == []
+    assert loaded.populations == []
+    assert len(loaded.civilizations) == 3
+
+
+def test_show_stats_export_report_summary_handle_complexity_layers(
+    tmp_path: Path,
+    capsys,
+):
+    run_path = tmp_path / "complex.json"
+    export_path = tmp_path / "complex-export.json"
+    report_path = tmp_path / "complex-report.md"
+    universe = create_universe("life_burst", "complex", seed=1212)
+    step_universe(universe, steps=5)
+    save_universe(universe, run_path)
+
+    assert main(["show", "--run", str(run_path)]) == 0
+    show_output = capsys.readouterr().out
+    assert "Structures:" in show_output
+    assert "Populations:" in show_output
+
+    assert main(["stats", "--run", str(run_path)]) == 0
+    stats_output = capsys.readouterr().out
+    assert "Structures total:" in stats_output
+    assert "Populations total:" in stats_output
+
+    assert main(["export", "--run", str(run_path), "--out", str(export_path)]) == 0
+    exported = json.loads(export_path.read_text(encoding="utf-8"))
+    assert "structure_summary" in exported
+    assert "population_summary" in exported
+    assert "structures" in exported
+    assert "populations" in exported
+
+    assert main(["report", "--run", str(run_path), "--out", str(report_path)]) == 0
+    report = report_path.read_text(encoding="utf-8")
+    assert "## Structure Summary" in report
+    assert "## Population Summary" in report
+
+    summary = summarize_run_directory(tmp_path, "complex")
+    assert summary["runs_count"] >= 1
+    assert "average_active_structures" in summary
+    assert "average_active_populations" in summary

@@ -15,7 +15,9 @@ if _SRC_PACKAGE.is_dir():
 
 __all__ = [
     "Civilization",
+    "EmergentStructure",
     "Event",
+    "Population",
     "SimulationConfig",
     "Species",
     "Universe",

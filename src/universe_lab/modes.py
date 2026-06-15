@@ -7,6 +7,7 @@ from typing import Callable
 
 from .models import (
     Civilization,
+    EmergentStructure,
     Event,
     SimulationConfig,
     Species,
@@ -31,6 +32,27 @@ _SPECIES_ROOTS = (
 )
 _CIV_SUFFIXES = ("Hearth", "Concord", "Array", "League", "Kinship")
 _ENVIRONMENTS = ("oceanic", "temperate", "desert", "ice", "volcanic", "orbital")
+_STRUCTURE_ROOTS = (
+    "Lattice",
+    "Veil",
+    "Current",
+    "Matrix",
+    "Field",
+    "Cluster",
+    "Filament",
+    "Phase",
+)
+_SCALES = ("micro", "local", "planetary", "stellar", "cosmic")
+_SUBSTRATES = (
+    "mineral",
+    "chemical",
+    "organic",
+    "informational",
+    "quantum",
+    "gravitational",
+    "cosmic",
+    "unknown",
+)
 
 
 def create_universe(mode: str, name: str, seed: int | None = None) -> Universe:
@@ -49,15 +71,21 @@ def create_universe(mode: str, name: str, seed: int | None = None) -> Universe:
 def create_life_burst(name: str, seed: int) -> Universe:
     rng = random.Random(seed)
     config = SimulationConfig(mode="life_burst", name=name, seed=seed)
-    species = [_random_species(rng, i) for i in range(rng.randint(6, 10))]
-    universe = _base_universe(name, "life_burst", seed, config, species)
+    structures = [_random_structure(rng, i) for i in range(rng.randint(6, 12))]
+    universe = _base_universe(
+        name,
+        "life_burst",
+        seed,
+        config,
+        structures=structures,
+    )
     universe.events.append(
         Event(
             year=0,
-            type="quiet_age",
-            title="Life Seeds Emerged",
-            description=f"{len(species)} young species appeared across open habitats.",
-            impact={"species": len(species)},
+            type="structure_formed",
+            title="Complexity Field Initialized",
+            description=f"{len(structures)} non-living structures formed in varied environments.",
+            impact={"structures": len(structures)},
         )
     )
     return universe
@@ -122,8 +150,9 @@ def _base_universe(
     mode: str,
     seed: int,
     config: SimulationConfig,
-    species: list[Species],
+    species: list[Species] | None = None,
     civilizations: list[Civilization] | None = None,
+    structures: list[EmergentStructure] | None = None,
 ) -> Universe:
     return Universe(
         id=new_id("uni"),
@@ -133,8 +162,36 @@ def _base_universe(
         age=0,
         seed=seed,
         config=config,
-        species=species,
+        structures=structures or [],
+        species=species or [],
         civilizations=civilizations or [],
+    )
+
+
+def _random_structure(rng: random.Random, index: int) -> EmergentStructure:
+    base_complexity = rng.uniform(0.16, 0.42)
+    stability = rng.uniform(0.18, 0.52)
+    classification = (
+        "complex_structure"
+        if base_complexity >= 0.35 and stability >= 0.25
+        else "inert"
+    )
+    return EmergentStructure(
+        id=new_id("str"),
+        name=f"{rng.choice(_STRUCTURE_ROOTS)}-{index + 1}",
+        age=0,
+        scale=rng.choice(_SCALES),
+        substrate=rng.choice(_SUBSTRATES),
+        complexity=round(base_complexity, 3),
+        stability=round(stability, 3),
+        energy_flow=round(rng.uniform(0.08, 0.42), 3),
+        information_retention=round(rng.uniform(0.05, 0.4), 3),
+        replication_potential=round(rng.uniform(0.02, 0.32), 3),
+        variation_rate=round(rng.uniform(0.015, 0.09), 3),
+        boundary_strength=round(rng.uniform(0.08, 0.42), 3),
+        adaptation_score=round(rng.uniform(0.02, 0.3), 3),
+        status="active",
+        classification=classification,
     )
 
 

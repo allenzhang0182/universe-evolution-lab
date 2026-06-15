@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import random
 
-from .models import Civilization, Event, Species, Universe, new_id, utc_now
+from .models import (
+    Civilization,
+    EmergentStructure,
+    Event,
+    Population,
+    Species,
+    Universe,
+    new_id,
+    utc_now,
+)
 
 
 def step_universe(universe: Universe, steps: int = 1) -> Universe:
@@ -21,6 +30,18 @@ def step_universe(universe: Universe, steps: int = 1) -> Universe:
 
 
 def summarize_universe(universe: Universe) -> dict[str, int | str]:
+    active_structures = sum(
+        1 for item in universe.structures if item.status != "collapsed"
+    )
+    collapsed_structures = sum(
+        1 for item in universe.structures if item.status == "collapsed"
+    )
+    active_populations = sum(
+        1 for item in universe.populations if item.status != "extinct"
+    )
+    extinct_populations = sum(
+        1 for item in universe.populations if item.status == "extinct"
+    )
     living_species = sum(1 for item in universe.species if item.status != "extinct")
     living_civilizations = sum(
         1 for item in universe.civilizations if item.status != "collapsed"
@@ -30,6 +51,12 @@ def summarize_universe(universe: Universe) -> dict[str, int | str]:
         "mode": universe.mode,
         "turn": universe.turn,
         "age": universe.age,
+        "structures": len(universe.structures),
+        "active_structures": active_structures,
+        "collapsed_structures": collapsed_structures,
+        "populations": len(universe.populations),
+        "active_populations": active_populations,
+        "extinct_populations": extinct_populations,
         "species": len(universe.species),
         "living_species": living_species,
         "civilizations": len(universe.civilizations),
@@ -43,6 +70,16 @@ def _step_once(universe: Universe) -> None:
     universe.age += 1
     rng = random.Random(universe.seed + universe.turn * 7919)
     event_count = len(universe.events)
+
+    for structure in list(universe.structures):
+        _advance_structure(universe, structure, rng)
+
+    _maybe_spawn_population(universe, rng)
+
+    for population in list(universe.populations):
+        _advance_population(universe, population, rng)
+
+    _maybe_form_species(universe, rng)
 
     species_by_id = {item.id: item for item in universe.species}
     for species in universe.species:
@@ -61,6 +98,481 @@ def _step_once(universe: Universe) -> None:
             "Quiet Age",
             "No major evolutionary or civilizational shift was recorded.",
             {"age": universe.age},
+        )
+
+
+def _advance_structure(
+    universe: Universe,
+    structure: EmergentStructure,
+    rng: random.Random,
+) -> None:
+    if structure.status == "collapsed":
+        return
+
+    structure.age += 1
+    old_complexity = structure.complexity
+    old_status = structure.status
+    old_classification = structure.classification
+    variation = max(0.005, structure.variation_rate)
+
+    structure.complexity = _clamp(
+        structure.complexity
+        + rng.uniform(-0.015, 0.034) * (1.0 + variation * 4)
+        + structure.energy_flow * 0.004
+        + structure.information_retention * 0.003
+    )
+    structure.stability = _clamp(
+        structure.stability
+        + rng.uniform(-0.03, 0.026) * (1.0 + variation * 2)
+        + structure.boundary_strength * 0.008
+        - variation * 0.018
+    )
+    structure.energy_flow = _clamp(
+        structure.energy_flow
+        + rng.uniform(-0.022, 0.026) * (1.0 + variation * 2)
+        + structure.complexity * 0.004
+    )
+    structure.information_retention = _clamp(
+        structure.information_retention
+        + rng.uniform(-0.018, 0.025) * (1.0 + variation * 2)
+        + structure.stability * 0.004
+    )
+    structure.replication_potential = _clamp(
+        structure.replication_potential
+        + rng.uniform(-0.018, 0.026) * (1.0 + variation * 2)
+        + structure.information_retention * 0.003
+    )
+    structure.boundary_strength = _clamp(
+        structure.boundary_strength
+        + rng.uniform(-0.02, 0.024) * (1.0 + variation * 2)
+        + structure.stability * 0.004
+    )
+    structure.adaptation_score = _clamp(
+        structure.adaptation_score
+        + rng.uniform(-0.018, 0.025) * (1.0 + variation * 3)
+        + structure.replication_potential * 0.003
+    )
+    structure.variation_rate = _clamp(
+        structure.variation_rate + rng.uniform(-0.005, 0.006),
+        0.003,
+        0.14,
+    )
+
+    _maybe_mutate_structure(universe, structure, rng)
+    _update_structure_status(universe, structure, old_status)
+    if structure.status == "collapsed":
+        return
+
+    _update_structure_classification(universe, structure, old_classification)
+    _maybe_replicate_structure(universe, structure, rng)
+
+    if structure.complexity - old_complexity >= 0.055:
+        _add_event(
+            universe,
+            "structure_growth",
+            f"{structure.name} Increased Complexity",
+            f"{structure.name} retained a more complex configuration.",
+            {
+                "complexity": structure.complexity,
+                "classification": structure.classification,
+            },
+            "structure",
+            structure.id,
+        )
+
+
+def _maybe_mutate_structure(
+    universe: Universe,
+    structure: EmergentStructure,
+    rng: random.Random,
+) -> None:
+    if rng.random() >= structure.variation_rate * 0.55:
+        return
+
+    complexity_delta = rng.uniform(-0.035, 0.05)
+    stability_delta = rng.uniform(-0.035, 0.035)
+    information_delta = rng.uniform(-0.025, 0.04)
+    structure.complexity = _clamp(structure.complexity + complexity_delta)
+    structure.stability = _clamp(structure.stability + stability_delta)
+    structure.information_retention = _clamp(
+        structure.information_retention + information_delta
+    )
+    structure.replication_potential = _clamp(
+        structure.replication_potential + rng.uniform(-0.025, 0.035)
+    )
+    _add_event(
+        universe,
+        "structure_mutation",
+        f"{structure.name} Varied",
+        f"{structure.name} shifted internal organization.",
+        {
+            "complexity_delta": round(complexity_delta, 4),
+            "stability_delta": round(stability_delta, 4),
+            "information_delta": round(information_delta, 4),
+        },
+        "structure",
+        structure.id,
+    )
+
+
+def _update_structure_status(
+    universe: Universe,
+    structure: EmergentStructure,
+    old_status: str,
+) -> None:
+    if structure.stability <= 0.045 or structure.complexity <= 0.025:
+        structure.status = "collapsed"
+        _add_event(
+            universe,
+            "structure_collapsed",
+            f"{structure.name} Collapsed",
+            f"{structure.name} could not maintain its structure.",
+            {"stability": structure.stability, "complexity": structure.complexity},
+            "structure",
+            structure.id,
+        )
+        return
+
+    if structure.stability < 0.16:
+        structure.status = "degraded"
+    elif structure.status == "degraded" and structure.stability >= 0.25:
+        structure.status = "active"
+    else:
+        structure.status = "active"
+
+    if structure.status == "degraded" and old_status != "degraded":
+        _add_event(
+            universe,
+            "structure_degraded",
+            f"{structure.name} Degraded",
+            f"{structure.name} lost structural coherence.",
+            {"stability": structure.stability},
+            "structure",
+            structure.id,
+        )
+
+
+def _update_structure_classification(
+    universe: Universe,
+    structure: EmergentStructure,
+    old_classification: str,
+) -> None:
+    if structure.status != "active":
+        return
+
+    new_classification = _classify_structure(structure)
+    structure.classification = new_classification
+    if new_classification == old_classification:
+        return
+
+    _add_event(
+        universe,
+        "classification_shift",
+        f"{structure.name} Reclassified",
+        f"{structure.name} shifted from {old_classification} to {new_classification}.",
+        {
+            "from": old_classification,
+            "to": new_classification,
+        },
+        "structure",
+        structure.id,
+    )
+    if new_classification == "proto_life":
+        _add_event(
+            universe,
+            "proto_life_detected",
+            f"{structure.name} Met Proto-Life Criteria",
+            f"{structure.name} combined maintenance, boundary, information, and replication traits.",
+            {"classification": new_classification},
+            "structure",
+            structure.id,
+        )
+    elif new_classification == "life_lineage":
+        _add_event(
+            universe,
+            "life_lineage_emerged",
+            f"{structure.name} Became a Life Lineage",
+            f"{structure.name} sustained adaptive replication-like organization.",
+            {"classification": new_classification},
+            "structure",
+            structure.id,
+        )
+
+
+def _classify_structure(structure: EmergentStructure) -> str:
+    if (
+        structure.complexity >= 0.65
+        and structure.stability >= 0.55
+        and structure.energy_flow >= 0.5
+        and structure.information_retention >= 0.55
+        and structure.replication_potential >= 0.5
+        and structure.boundary_strength >= 0.5
+        and structure.adaptation_score >= 0.45
+        and structure.age >= 5
+    ):
+        return "life_lineage"
+    if (
+        structure.complexity >= 0.55
+        and structure.stability >= 0.5
+        and structure.energy_flow >= 0.45
+        and structure.information_retention >= 0.45
+        and structure.replication_potential >= 0.4
+        and structure.boundary_strength >= 0.45
+        and structure.age >= 3
+    ):
+        return "proto_life"
+    if (
+        structure.complexity >= 0.45
+        and structure.stability >= 0.45
+        and structure.energy_flow >= 0.35
+        and structure.boundary_strength >= 0.35
+    ):
+        return "self_maintaining"
+    if structure.complexity >= 0.35 and structure.stability >= 0.25:
+        return "complex_structure"
+    return "inert"
+
+
+def _maybe_replicate_structure(
+    universe: Universe,
+    structure: EmergentStructure,
+    rng: random.Random,
+) -> None:
+    if len(universe.structures) >= 80:
+        return
+    if structure.replication_potential < 0.52 or structure.information_retention < 0.38:
+        return
+    if structure.boundary_strength < 0.34 or structure.status != "active":
+        return
+    chance = 0.01
+    chance += (structure.replication_potential - 0.52) * 0.12
+    chance += (structure.information_retention - 0.38) * 0.08
+    chance += max(0.0, structure.adaptation_score - 0.35) * 0.06
+    if rng.random() > chance:
+        return
+
+    child = EmergentStructure(
+        id=new_id("str"),
+        name=f"{structure.name}-r{len(universe.structures) + 1}",
+        age=0,
+        scale=structure.scale,
+        substrate=structure.substrate,
+        complexity=_mutated_value(structure.complexity, rng, structure.variation_rate),
+        stability=_mutated_value(structure.stability, rng, structure.variation_rate),
+        energy_flow=_mutated_value(structure.energy_flow, rng, structure.variation_rate),
+        information_retention=_mutated_value(
+            structure.information_retention,
+            rng,
+            structure.variation_rate,
+        ),
+        replication_potential=_mutated_value(
+            structure.replication_potential,
+            rng,
+            structure.variation_rate,
+        ),
+        variation_rate=_clamp(
+            structure.variation_rate + rng.uniform(-0.015, 0.018),
+            0.003,
+            0.14,
+        ),
+        boundary_strength=_mutated_value(
+            structure.boundary_strength,
+            rng,
+            structure.variation_rate,
+        ),
+        adaptation_score=_mutated_value(
+            structure.adaptation_score,
+            rng,
+            structure.variation_rate,
+        ),
+        status="active",
+        classification="inert",
+    )
+    child.classification = _classify_structure(child)
+    universe.structures.append(child)
+    _add_event(
+        universe,
+        "structure_replication",
+        f"{structure.name} Replicated",
+        f"{structure.name} produced a related structure with variation.",
+        {
+            "child_id": child.id,
+            "child_classification": child.classification,
+        },
+        "structure",
+        structure.id,
+    )
+
+
+def _maybe_spawn_population(universe: Universe, rng: random.Random) -> None:
+    populated_sources = {
+        population.source_structure_id
+        for population in universe.populations
+        if population.status != "extinct"
+    }
+    for structure in universe.structures:
+        if structure.id in populated_sources:
+            continue
+        if structure.status != "active" or structure.classification != "life_lineage":
+            continue
+        if structure.age < 7:
+            continue
+        lineage_strength = (
+            structure.stability
+            + structure.replication_potential
+            + structure.adaptation_score
+            + structure.boundary_strength
+        ) / 4
+        if lineage_strength < 0.54:
+            continue
+        chance = min(0.22, (lineage_strength - 0.54) * 0.5 + 0.04)
+        if rng.random() > chance:
+            continue
+
+        population = Population(
+            id=new_id("pop"),
+            name=f"{structure.name} Population",
+            source_structure_id=structure.id,
+            lineage_id=structure.id,
+            age=0,
+            size=max(80, int(1_000 * lineage_strength * rng.uniform(0.6, 1.8))),
+            diversity=round(_clamp(structure.variation_rate * 4 + rng.uniform(0.05, 0.2)), 3),
+            adaptation=round(_clamp(structure.adaptation_score + rng.uniform(-0.05, 0.08)), 3),
+            reproduction=round(
+                _clamp(structure.replication_potential + rng.uniform(-0.05, 0.08)),
+                3,
+            ),
+            stability=round(_clamp(structure.stability + rng.uniform(-0.05, 0.06)), 3),
+            status="active",
+        )
+        universe.populations.append(population)
+        _add_event(
+            universe,
+            "population_emerged",
+            f"{population.name} Emerged",
+            f"{structure.name} persisted as a bounded adaptive population.",
+            {"size": population.size},
+            "population",
+            population.id,
+        )
+
+
+def _advance_population(
+    universe: Universe,
+    population: Population,
+    rng: random.Random,
+) -> None:
+    if population.status == "extinct":
+        return
+
+    population.age += 1
+    old_size = population.size
+    growth_rate = rng.uniform(-0.08, 0.12)
+    growth_rate += (population.adaptation - 0.5) * 0.11
+    growth_rate += (population.reproduction - 0.5) * 0.1
+    growth_rate += (population.stability - 0.5) * 0.07
+    growth_rate += (population.diversity - 0.35) * 0.035
+    population.size = max(0, int(population.size * (1.0 + growth_rate)))
+    population.diversity = _clamp(population.diversity + rng.uniform(-0.015, 0.02))
+    population.adaptation = _clamp(population.adaptation + rng.uniform(-0.018, 0.026))
+    population.reproduction = _clamp(population.reproduction + rng.uniform(-0.018, 0.024))
+    population.stability = _clamp(
+        population.stability
+        + rng.uniform(-0.024, 0.022)
+        + (population.adaptation - 0.5) * 0.012
+    )
+
+    if population.size < 50 or population.stability <= 0.06:
+        population.size = 0
+        population.status = "extinct"
+        _add_event(
+            universe,
+            "population_extinct",
+            f"{population.name} Went Extinct",
+            f"{population.name} failed to maintain a viable population.",
+            {"size": 0, "stability": population.stability},
+            "population",
+            population.id,
+        )
+        return
+
+    change_ratio = (population.size - old_size) / old_size if old_size else 0.0
+    if change_ratio >= 0.15:
+        population.status = "active"
+        _add_event(
+            universe,
+            "population_growth",
+            f"{population.name} Grew",
+            f"{population.name} expanded as a stable lineage population.",
+            {"size_delta": population.size - old_size, "size": population.size},
+            "population",
+            population.id,
+        )
+    elif change_ratio <= -0.15:
+        population.status = "declining"
+        _add_event(
+            universe,
+            "population_decline",
+            f"{population.name} Declined",
+            f"{population.name} lost population stability.",
+            {"size_delta": population.size - old_size, "size": population.size},
+            "population",
+            population.id,
+        )
+    elif population.status == "declining" and population.stability > 0.28:
+        population.status = "active"
+
+
+def _maybe_form_species(universe: Universe, rng: random.Random) -> None:
+    species_sources = {
+        species.source_population_id
+        for species in universe.species
+        if species.source_population_id is not None
+    }
+    for population in universe.populations:
+        if population.status == "extinct" or population.id in species_sources:
+            continue
+        if (
+            population.size < 30_000
+            or population.adaptation < 0.58
+            or population.reproduction < 0.52
+            or population.stability < 0.52
+            or population.diversity < 0.35
+            or population.age < 5
+        ):
+            continue
+        chance = 0.04
+        chance += (population.adaptation - 0.58) * 0.16
+        chance += (population.reproduction - 0.52) * 0.12
+        chance += (population.diversity - 0.35) * 0.08
+        if rng.random() > min(0.2, chance):
+            continue
+
+        species = Species(
+            id=new_id("sp"),
+            name=f"{population.name} Species",
+            population=population.size,
+            adaptability=round(_clamp(population.adaptation), 3),
+            intelligence=round(_clamp(0.08 + population.diversity * 0.25), 3),
+            cooperation=round(_clamp(0.22 + population.stability * 0.5), 3),
+            aggression=round(rng.uniform(0.04, 0.45), 3),
+            mutation_rate=round(_clamp(0.012 + population.diversity * 0.08), 3),
+            status="stable",
+            resilience=round(_clamp(0.25 + population.stability * 0.55), 3),
+            environment_affinity=rng.choice(
+                ("oceanic", "temperate", "desert", "ice", "volcanic", "orbital")
+            ),
+            source_population_id=population.id,
+        )
+        universe.species.append(species)
+        _add_event(
+            universe,
+            "speciation",
+            f"{species.name} Formed",
+            f"{population.name} differentiated into a stable species.",
+            {"species_id": species.id, "population_size": population.size},
+            "species",
+            species.id,
         )
 
 
@@ -560,6 +1072,11 @@ def _add_event(
             target_id=target_id,
         )
     )
+
+
+def _mutated_value(value: float, rng: random.Random, variation_rate: float) -> float:
+    spread = 0.025 + variation_rate * 0.6
+    return _clamp(value + rng.uniform(-spread, spread))
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:

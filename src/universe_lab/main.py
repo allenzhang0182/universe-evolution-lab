@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 from .batch import (
@@ -155,13 +156,51 @@ def _show(args: argparse.Namespace) -> int:
     print(f"Mode: {universe.mode}")
     print(f"Age: {universe.age}")
     print(
+        "Structures: "
+        f"{summary['active_structures']}/{summary['structures']} active, "
+        f"collapsed={summary['collapsed_structures']}"
+    )
+    print(f"Structure classifications: {_format_counts(_classification_counts(universe))}")
+    print(
+        "Populations: "
+        f"{summary['active_populations']}/{summary['populations']} active, "
+        f"extinct={summary['extinct_populations']}"
+    )
+    print(
         "Species: "
-        f"{summary['living_species']}/{summary['species']} active"
+        f"{summary['living_species']}/{summary['species']} active, "
+        f"extinct={summary['species'] - summary['living_species']}"
     )
     print(
         "Civilizations: "
-        f"{summary['living_civilizations']}/{summary['civilizations']} active"
+        f"{summary['living_civilizations']}/{summary['civilizations']} active, "
+        f"collapsed={summary['civilizations'] - summary['living_civilizations']}"
     )
+    print()
+    print("Structures:")
+    if not universe.structures:
+        print("- none")
+    for structure in universe.structures:
+        print(
+            "- "
+            f"{structure.name} ({structure.status}, {structure.classification}, "
+            f"complexity={structure.complexity:.2f}, "
+            f"stability={structure.stability:.2f}, "
+            f"replication={structure.replication_potential:.2f})"
+        )
+
+    print()
+    print("Populations:")
+    if not universe.populations:
+        print("- none")
+    for population in universe.populations:
+        print(
+            "- "
+            f"{population.name} ({population.status}, size={population.size}, "
+            f"adaptation={population.adaptation:.2f}, "
+            f"reproduction={population.reproduction:.2f}, "
+            f"stability={population.stability:.2f})"
+        )
     print()
     print("Species:")
     if not universe.species:
@@ -262,10 +301,22 @@ def _format_summary(universe) -> str:
     return (
         f"{summary['name']} | mode={summary['mode']} | turn={summary['turn']} | "
         f"age={summary['age']} | "
+        f"structures={summary['active_structures']}/{summary['structures']} | "
+        f"populations={summary['active_populations']}/{summary['populations']} | "
         f"species={summary['living_species']}/{summary['species']} | "
         f"civilizations={summary['living_civilizations']}/{summary['civilizations']} | "
         f"events={summary['events']}"
     )
+
+
+def _classification_counts(universe) -> dict[str, int]:
+    return dict(sorted(Counter(item.classification for item in universe.structures).items()))
+
+
+def _format_counts(counts: dict[str, int]) -> str:
+    if not counts:
+        return "none"
+    return ", ".join(f"{name}={count}" for name, count in counts.items())
 
 
 if __name__ == "__main__":
