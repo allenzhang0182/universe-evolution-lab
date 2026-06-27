@@ -1,0 +1,5 @@
+{
+  "post_hooks": [
+    ".openhands/hooks/quality_gate.sh"
+  ]
+}
