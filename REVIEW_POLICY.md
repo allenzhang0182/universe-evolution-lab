@@ -5,6 +5,14 @@
 
 ---
 
+## Purpose & Relationship
+
+- **`REVIEW_POLICY.md`** — risk classification / review gates.
+- **`EVALUATION_POLICY.md`** — exact evaluation / evidence / AI judge / final decision. See [`EVALUATION_POLICY.md`](EVALUATION_POLICY.md).
+- A failed **required evaluation gate** cannot be overridden by an AI judge.
+
+---
+
 ## 1. Risk Levels
 
 Every task modification must be classified into one of the following risk levels:

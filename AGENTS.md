@@ -14,7 +14,8 @@ When an AI tool starts working on this project, it **must read the following fil
 3. **`PROJECT_STATUS.md`** — Current project state, progress, and known issues
 4. **`TOOL_DECISION.md`** — Architecture decisions and tool selection rationale
 5. **`REVIEW_POLICY.md`** — Risk classification and gating policy
-6. **`TASK_QUEUE.md`** — Task queue with status and assignments
+6. **`EVALUATION_POLICY.md`** — Evaluation and verification policy
+7. **`TASK_QUEUE.md`** — Task queue with status and assignments
 
 ---
 
@@ -26,8 +27,11 @@ All AI tools must adhere to the following principles:
 - **Small tasks, no big bangs** — Prefer small, incremental changes over massive refactors.
 - **Explicit allowed scope** — Only modify files explicitly listed in the allowed scope.
 - **Explicit forbidden scope** — Never touch files listed as forbidden.
-- **Tests must pass before submission** — Run the test suite after every change.
+- **Applicable exact checks must pass before submission** — Run the tests, build, lint, or deterministic checks that apply to the task. If no such checks apply, record why they are not applicable according to [`EVALUATION_POLICY.md`](EVALUATION_POLICY.md).
 - **High-risk tasks require human review** — See [`REVIEW_POLICY.md`](REVIEW_POLICY.md) for risk classification.
+- **Evaluation follows `EVALUATION_POLICY.md`** — Evaluation and verification follow [`EVALUATION_POLICY.md`](EVALUATION_POLICY.md).
+- **Completion report is execution evidence only** — A completion report / AI self-report is not independent verification.
+- **Do not duplicate policy content** — Do not copy EVALUATION_POLICY content into other rule files.
 - **Default: do not `git push`** — No automatic pushes to remote.
 - **Default: do not `git merge main`** — No automatic merges from main branch.
 
@@ -65,26 +69,21 @@ AI tools **must not** perform the following under any circumstances:
 
 ## 5. Project Boundaries
 
-This project — **`ai-dev-toolkit`** — is limited to:
+Project boundaries are **project-specific** and must be defined by the humans maintaining this repository. Do not assume the boundary of one project applies to another.
 
-- Static rule templates (`.ai-dev-rules.md`, `.clinerules`, `.roorules`, etc.)
-- Project initialization templates
-- SOP v2 import scripts
-- SOP v2 validation scripts
-- Agent coordination templates (`AGENTS.md`, `REVIEW_POLICY.md`, `TASK_QUEUE.md`)
-- GitHub Issue / PR / CI / CodeRabbit template distribution
+The canonical sources for project boundaries are:
 
-**`ai-dev-toolkit` does NOT cover:**
+- **`PROJECT_STATUS.md`** — Current scope, status, and known out-of-scope areas
+- **`TOOL_DECISION.md`** — Architecture decisions and tool selection rationale
+- **`TASK_QUEUE.md`** — Task queue with scope annotations
+- **`README.md`** — Project overview and stated purpose
 
-- Dynamic task management
-- Risk-level execution engine
-- Approval workflow system
-- Audit logging system
-- Automated development loop controller
-- Web UI
-- Agent platform
+General boundary guidance:
 
-These capabilities belong to **`ai-project-brain`**, a separate system.
+- Static rule templates, initialization templates, SOP scripts, and agent coordination templates are typical static-project artifacts.
+- Dynamic control-plane features — such as approval systems, audit systems, executor scheduling, router/classifier logic, Web UI, or agent platforms — are only allowed when they are **explicitly in scope** for this repository.
+- If this repository is not a control-plane project, these tasks must be treated as **out of scope** or **high risk**.
+- When in doubt about a boundary, **ask a human** and consult the files listed above before acting.
 
 ---
 

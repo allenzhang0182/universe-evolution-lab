@@ -71,7 +71,7 @@ When starting a task, read the following files **in order**:
 | 6 | Creating files outside the allowed modification scope | Scope creep and unintended side effects |
 | 7 | Creating abnormally named files (natural language names, `SEARCH/REPLACE`, `Let's`, `Here is`) | Causes confusion and tooling issues |
 | 8 | Saving `plans/` or implementation plan files (unless explicitly allowed) | Plans should be communicated, not persisted |
-| 9 | Writing `ai-project-brain` dynamic features (approval system, audit system, executor scheduler, Web UI, agent platform) into `ai-dev-toolkit` | Domain boundary — these belong to `ai-project-brain`, not `ai-dev-toolkit` |
+| 9 | Implementing dynamic control-plane features (approval system, audit system, executor scheduling, router/classifier logic, Web UI, agent platform) unless explicitly in scope | Control-plane features are only allowed when explicitly in scope for this repository; otherwise treat as out of scope / high risk |
 
 ---
 
